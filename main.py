@@ -43,6 +43,7 @@ class AudioBooker:
         self._download_directory = "download"
         self._logger.debug(f"Ensuring the {self._download_directory} directory exists")
         self._chapter = 0
+        self._track = 0
         self._introduction_processed = False
         self._prologue_processed = False
         # This is used to add silence to the ends of each chapter for a better listening experience
@@ -111,6 +112,12 @@ class AudioBooker:
             help="The length, in seconds, that a silence should be considered. This is helpful to remove trailing silences from a audio file.",
             default=5,
         )
+        parser.add_argument(
+            "--no_chapters",
+            action=argparse.BooleanOptionalAction,
+            help="Specify whether to generate chapters from the audiobook",
+            default=False,
+        )
 
         # Parse the arguments
         return parser.parse_args()
@@ -124,7 +131,7 @@ class AudioBooker:
     def _execute_command(self, command: str) -> subprocess.CompletedProcess:
         self._logger.info(f"Executing: {command}")
         result = subprocess.run(
-            [command],
+            command,
             shell=True,
             encoding="utf-8",
             capture_output=True,
@@ -212,10 +219,10 @@ class AudioBooker:
                 self._logger.exception(f"Unhandled error while downloading {download_file}")
         return downloaded_files
 
-    def _generate_chapter_file(self, filename: str, start_time: int, end_time: int, chapter: str) -> None:
+    def _generate_chapter_file(self, filename: str, start_time: int, end_time: int, chapter: str, track: int) -> None:
         output_file = f"{self._download_directory}/{self._args.name}_{chapter}.mp3"
         self._logger.info(f"Generating the {output_file} chapter")
-        metadata = f'{self._metadata} -metadata title="{chapter}" -metadata track="{chapter}"'
+        metadata = f'{self._metadata} -metadata title="{chapter}" -metadata track="{track}"'
         command = f'ffmpeg -i "{filename}" {metadata} -c copy -y'
         if start_time:
             command += f" -ss {float(start_time) - self._silence_padding}"
@@ -246,11 +253,13 @@ class AudioBooker:
             else:
                 self._chapter += 1
                 chapter = f"Chapter {self._chapter}"
+            self._track += 1
             self._generate_chapter_file(
                 filename=filename,
                 start_time=next_chapter_start_time,
                 end_time=silence_start,
                 chapter=chapter,
+                track = self._track,
             )
             next_chapter_start_time = silence_end
         # This captures all of the audio AFTER the last detected silence, which should be the rest of a MP3 file
@@ -261,12 +270,17 @@ class AudioBooker:
                 chapter = "Epilogue"
         else:
             self._chapter += 1
-            chapter = f"Chapter {self._chapter}"
+            if self._args.no_chapters:
+                chapter = f"Part {self._chapter}"
+            else:
+                chapter = f"Chapter {self._chapter}"
+        self._track += 1
         self._generate_chapter_file(
             filename=filename,
             start_time=next_chapter_start_time,
             end_time=0,
             chapter=chapter,
+            track = self._track 
         )
 
     def execute(self):
@@ -274,8 +288,11 @@ class AudioBooker:
         loaded_har_file = self._load_har_file()
         located_media_links = self._identify_download_urls(loaded_har_file=loaded_har_file)
         downloaded_files = self._download_audiobook_files(located_media_links=located_media_links)
-        for downloaded_file in downloaded_files:
-            silence_timestamps = self._detect_silences(filename=downloaded_file)
+       for downloaded_file in downloaded_files:
+            if self._args.no_chapters:
+                silence_timestamps = []
+            else:
+                silence_timestamps = self._detect_silences(filename=downloaded_file)
             self._identify_chapters(
                 filename=downloaded_file,
                 silence_timestamps=silence_timestamps,
