@@ -1,0 +1,4 @@
+*.har
+
+download/*
+libby_env/*
