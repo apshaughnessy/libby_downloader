@@ -288,7 +288,7 @@ class AudioBooker:
         loaded_har_file = self._load_har_file()
         located_media_links = self._identify_download_urls(loaded_har_file=loaded_har_file)
         downloaded_files = self._download_audiobook_files(located_media_links=located_media_links)
-       for downloaded_file in downloaded_files:
+        for downloaded_file in downloaded_files:
             if self._args.no_chapters:
                 silence_timestamps = []
             else:
