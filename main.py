@@ -88,7 +88,7 @@ class AudioBooker:
             "--log_level",
             type=str,
             help="Level to use for Logging",
-            default="INFO",
+            default="WARNING",
             choices=["INFO", "DEBUG", "WARNING"],
         )
         parser.add_argument(
@@ -124,8 +124,8 @@ class AudioBooker:
 
     def _build_metadata(self) -> str:
         metadata = f'-metadata album="{self._args.title}" -metadata author="{self._args.author}" -metadata album_artist="{self._args.author}"'
-        if self._args.composer:
-            metadata += f' -metadata composer="{self._args.composer}"'
+        if self._args.narrator:
+            metadata += f' -metadata narrator="{self._args.narrator}"'
         return metadata
 
     def _execute_command(self, command: str) -> subprocess.CompletedProcess:
@@ -231,7 +231,7 @@ class AudioBooker:
         # The outfile file must be the last argument in the command
         command += f' "{output_file}"'
         if os.path.isfile(output_file):
-            self._logger.warning(f"The {output_file} chapter file has already been generated")
+            self._logger.warning(f"The {output_file} chapter file is being overwritten")
         self._execute_command(command=command)
 
     def _identify_chapters(self, filename: str, silence_timestamps: tuple[str], is_last_file: bool) -> None:
