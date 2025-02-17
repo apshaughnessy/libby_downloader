@@ -56,7 +56,7 @@ class AudioBooker:
         parser.add_argument("--name", type=str, help="The name of the book", required=True)
         parser.add_argument("--title", type=str, help="The title of the book", required=True)
         parser.add_argument("--author", type=str, help="The author of the book", required=True)
-        parser.add_argument("--composer", type=str, help="The narrator of the book", required=True)
+        parser.add_argument("--narrator", type=str, help="The narrator of the book", required=True)
         parser.add_argument(
             "-hf", "--har_file", type=str, help="The path to the generated HAR file", default="libbyapp.com.har"
         )
