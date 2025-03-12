@@ -174,7 +174,7 @@ class AudioBooker:
             if libby_entry["_resourceType"] != "media":
                 self._logger.debug(f"Skipping non-media resource: {libby_entry['_resourceType']}")
                 continue
-            if "odrmediaclips.cachefly.net" not in libby_entry["request"]["url"]:
+            if "audioclips.cdn.overdrive.com" not in libby_entry["request"]["url"]:
                 self._logger.debug(f"Skipping invalid URL: {libby_entry['request']['url']}")
                 continue
             query_timestamp = datetime.fromisoformat(libby_entry["startedDateTime"].replace("Z", "+00:00"))
