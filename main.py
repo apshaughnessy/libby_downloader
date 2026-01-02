@@ -54,8 +54,8 @@ class AudioBooker:
         # Define command-line arguments
         parser.add_argument("--name", type=str, help="The name of the book", required=True)
         parser.add_argument("--title", type=str, help="The title of the book", required=True)
-        parser.add_argument("--author", type=str, help="The author of the book", required=True)
-        parser.add_argument("--composer", type=str, help="The narrator of the book", required=True)
+        parser.add_argument("--author", type=str, help="The author of the book", default="Unknown")
+        parser.add_argument("--composer", type=str, help="The narrator of the book", default="Unknown")
         parser.add_argument(
             "-hf", "--har_file", type=str, help="The path to the generated HAR file", default="libbyapp.com.har"
         )
@@ -91,11 +91,17 @@ class AudioBooker:
             choices=["INFO", "DEBUG", "WARNING"],
         )
         parser.add_argument(
+            "--detect_chapter_boundaries",
+            type=bool,
+            help="Specify whether to detect chapter boundaries",
+            default=True,
+        )
+        parser.add_argument(
             "-sdt",
             "--silence_duration_threshold",
             type=float,
             help="The length of the silence to use for chapter detection",
-            default=3.5,
+            default=4,
         )
         parser.add_argument(
             "-sdbt",
@@ -110,6 +116,12 @@ class AudioBooker:
             type=float,
             help="The length, in seconds, that a silence should be considered. This is helpful to remove trailing silences from a audio file.",
             default=5,
+        )
+        parser.add_argument(
+            "--source_url",
+            type=str,
+            help="Source URL of serivice that is hosting the original MP3 files",
+            default="audioclips.cdn.overdrive.com",
         )
 
         # Parse the arguments
@@ -164,10 +176,10 @@ class AudioBooker:
         self._logger.info("Attempting to parse the MP3 download URLS from the loaded HAR file")
         located_media_links = {}
         for libby_entry in loaded_har_file["log"]["entries"]:
-            if libby_entry["_resourceType"] != "media":
-                self._logger.debug(f"Skipping non-media resource: {libby_entry['_resourceType']}")
+            if (resource_type := libby_entry.get("_resourceType")) and resource_type != "media":
+                self._logger.debug(f"Skipping non-media resource: {resource_type}")
                 continue
-            if "odrmediaclips.cachefly.net" not in libby_entry["request"]["url"]:
+            if self._args.source_url not in libby_entry["request"]["url"]:
                 self._logger.debug(f"Skipping invalid URL: {libby_entry['request']['url']}")
                 continue
             query_timestamp = datetime.fromisoformat(libby_entry["startedDateTime"].replace("Z", "+00:00"))
@@ -189,12 +201,21 @@ class AudioBooker:
         self._logger.info(f"Attempting to download the MP3 files from the {self._args.har_file} HAR file")
         self._logger.debug(f"Downloading: {json.dumps(list(located_media_links), indent=4)}")
         for media_link in located_media_links:
-            re_match = re.search(r"\/(\w+)$", media_link)
-            if not re_match:
-                self._logger.error(f"Unable to parse filename from {media_link}")
-                continue
-            filename = re_match.group(1)
-            self._logger.info(f"Parsed filename {filename} from URL")
+            if self._args.detect_chapter_boundaries:
+                re_match = re.search(r"\/(\w+)$", media_link)
+                if not re_match:
+                    self._logger.error(f"Unable to parse filename from {media_link}")
+                    continue
+                filename = re_match.group(1)
+                self._logger.info(f"Parsed filename {filename} from URL")
+            elif self._args.has_prologue and not self._prologue_processed:
+                filename = "Prologue"
+                self._prologue_processed = True
+            # If the last chapter WITH a conclusion following in the LAST downloaded file
+            # elif silence_timestamp == silence_timestamps[-1] and self._args.has_conclusion and is_last_file:
+            #     filename = "Epilogue"
+            else:
+                filename = f"Chapter{len(downloaded_files)}"
             download_file = f"{self._download_directory}/{self._args.name}_{filename}.mp3"
             if os.path.isfile(download_file):
                 self._logger.warning(f"The {download_file} file has already been downloaded")
